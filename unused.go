@@ -36,7 +36,7 @@ func (i *globFlags) String() string {
 func (i *globFlags) Set(value string) error {
 	g, err := glob.Compile(value)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	*i = append(*i, g)
 	return nil
