@@ -10,3 +10,7 @@ The tool can instructed to skip checking usage of objects by using line comments
 The `// unused:disable` comment disables the check after the comment in the current file.
 
 Usage: `unused [flags]`
+
+## Installation
+
+`$ go install github.com/mgnsk/unused@latest`
