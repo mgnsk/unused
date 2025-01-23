@@ -190,7 +190,6 @@ type result struct {
 
 type options struct {
 	includeGenerated bool
-	// excludeFilenameRegex []*regexp.Regexp
 }
 
 // getUnused returns unused nodes.
