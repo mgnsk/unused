@@ -121,10 +121,10 @@ func TestUnused(t *testing.T) {
 }
 
 func buildExecutable(t *testing.T) string {
-	bin := filepath.Join(t.TempDir(), "deadcode")
+	bin := filepath.Join(t.TempDir(), "unused")
 	cmd := exec.Command("go", "build", "-o", bin)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("Building deadcode: %v\n%s", err, out)
+		t.Fatalf("Building unused: %v\n%s", err, out)
 	}
 	return bin
 }
