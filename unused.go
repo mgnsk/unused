@@ -270,7 +270,7 @@ func collect(pkgs []*packages.Package, filterModule string) result {
 
 			for n := range ast.Preorder(f) {
 				if decl, ok := n.(*ast.FuncDecl); ok {
-					if id := getFuncDeclReceiver(decl); id != nil {
+					if id := getFuncDeclReceiver(pkg.Fset, decl); id != nil {
 						receiverUsesIdents[id] = struct{}{}
 					}
 				}
@@ -420,65 +420,41 @@ func getModule() (*goModule, error) {
 	return mod, nil
 }
 
-func getFuncDeclReceiver(decl *ast.FuncDecl) *ast.Ident {
+func getFuncDeclReceiver(fset *token.FileSet, decl *ast.FuncDecl) *ast.Ident {
 	if decl.Recv == nil {
 		return nil
 	}
 
-	for _, field := range decl.Recv.List {
-		switch typ := field.Type.(type) {
+	var extractIdent func(ast.Node) *ast.Ident
+	extractIdent = func(n ast.Node) *ast.Ident {
+		switch n := n.(type) {
 		case *ast.Ident:
-			return typ
+			return n
 
 		case *ast.StarExpr:
-			switch typ := typ.X.(type) {
-			case *ast.Ident:
-				return typ
-
-			case *ast.IndexExpr:
-				switch typ := typ.X.(type) {
-				case *ast.Ident:
-					return typ
-
-				default:
-					panic(fmt.Sprintf("invalid receiver field type %T", typ))
-				}
-
-			case *ast.IndexListExpr:
-				switch typ := typ.X.(type) {
-				case *ast.Ident:
-					return typ
-
-				default:
-					panic(fmt.Sprintf("invalid receiver field type %T", typ))
-				}
-
-			default:
-				panic(fmt.Sprintf("invalid receiver field type %T", typ))
-			}
+			return extractIdent(n.X)
 
 		case *ast.IndexExpr:
-			switch typ := typ.X.(type) {
-			case *ast.Ident:
-				return typ
-
-			default:
-				panic(fmt.Sprintf("invalid receiver field type %T", typ))
-			}
+			return extractIdent(n.X)
 
 		case *ast.IndexListExpr:
-			switch typ := typ.X.(type) {
-			case *ast.Ident:
-				return typ
-
-			default:
-				panic(fmt.Sprintf("invalid receiver field type %T", typ))
-			}
+			return extractIdent(n.X)
 
 		default:
-			panic(fmt.Sprintf("invalid receiver field type %T", typ))
+			return nil
 		}
 	}
 
-	panic(fmt.Sprintf("invalid receiver %T", decl.Recv))
+	for _, field := range decl.Recv.List {
+		if id := extractIdent(field.Type); id != nil {
+			return id
+		}
+	}
+
+	var buf strings.Builder
+	if err := ast.Fprint(&buf, fset, decl.Recv, nil); err != nil {
+		panic(err)
+	}
+
+	panic(fmt.Sprintf("unable to extract type ident from receiver: %s", buf.String()))
 }
