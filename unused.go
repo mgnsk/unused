@@ -242,7 +242,11 @@ func collect(pkgs []*packages.Package, filterModule string) result {
 	}
 
 	packages.Visit(pkgs, func(pkg *packages.Package) bool {
-		if filterModule != "" && (pkg.Module == nil || pkg.Module.Path != filterModule) {
+		if pkg.Module == nil {
+			return false
+		}
+
+		if filterModule != "" && pkg.Module.Path != filterModule {
 			return false
 		}
 
