@@ -173,9 +173,9 @@ func newObject(typ string, fset *token.FileSet, o types.Object) object {
 
 // result is a node definition and usage result.
 type result struct {
-	unusedSkip    []token.Position // Positions of unused:skip comments.
-	unusedDisable []token.Position // Positions of unused:disable comments.
-	generated     []token.Position // Position of Code generated comments.
+	unusedSkip    []token.Position    // Positions of unused:skip comments.
+	unusedDisable []token.Position    // Positions of unused:disable comments.
+	generated     map[string]struct{} // File names of generated files.
 	defs          map[object]struct{}
 	uses          map[object]struct{}
 }
@@ -209,10 +209,10 @@ func (r result) getUnused(opts options) iter.Seq[object] {
 				continue
 			}
 
-			if !opts.includeGenerated && slices.ContainsFunc(r.generated, func(pos token.Position) bool {
-				return pos.Filename == o.pos.Filename
-			}) {
-				continue
+			if !opts.includeGenerated {
+				if _, ok := r.generated[o.pos.Filename]; ok {
+					continue
+				}
 			}
 
 			if slices.ContainsFunc(r.unusedSkip, func(pos token.Position) bool {
@@ -239,8 +239,9 @@ func (r result) getUnused(opts options) iter.Seq[object] {
 // collect the object result from packages.
 func collect(pkgs []*packages.Package, filterModule string) result {
 	r := result{
-		defs: map[object]struct{}{},
-		uses: map[object]struct{}{},
+		generated: map[string]struct{}{},
+		defs:      map[object]struct{}{},
+		uses:      map[object]struct{}{},
 	}
 
 	packages.Visit(pkgs, func(pkg *packages.Package) bool {
@@ -263,11 +264,11 @@ func collect(pkgs []*packages.Package, filterModule string) result {
 					if strings.HasPrefix(comment.Text, "//unused:disable") || strings.HasPrefix(comment.Text, "// unused:disable") {
 						r.unusedDisable = append(r.unusedDisable, pkg.Fset.Position(comment.Pos()))
 					}
-
-					if comment.Pos() < f.Package && strings.HasPrefix(comment.Text, "// Code generated") {
-						r.generated = append(r.generated, pkg.Fset.Position(comment.Pos()))
-					}
 				}
+			}
+
+			if ast.IsGenerated(f) {
+				r.generated[pkg.Fset.File(f.FileStart).Name()] = struct{}{}
 			}
 
 			for n := range ast.Preorder(f) {
