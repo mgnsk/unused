@@ -138,18 +138,10 @@ func main() {
 
 	opts := options{
 		includeGenerated: includeGenerated,
+		excludeGlobs:     excludeGlobs,
 	}
 
 	for o := range result.getUnused(opts) {
-		if strings.Contains(o.pkgPath, "testdata") {
-			// Skip objects defined in testdata packages.
-			continue
-		}
-
-		if excludeGlobs.Match(o.pos.Filename) {
-			continue
-		}
-
 		exitCode = 1
 
 		if _, err := fmt.Fprintf(os.Stdout, "%s: unused %s %s\n", o.pos.String(), o.typ, o.name); err != nil {
@@ -190,6 +182,7 @@ type result struct {
 
 type options struct {
 	includeGenerated bool
+	excludeGlobs     globFlags
 }
 
 // getUnused returns unused nodes.
@@ -204,6 +197,15 @@ func (r result) getUnused(opts options) iter.Seq[object] {
 	return func(yield func(object) bool) {
 		for _, o := range sortedDefs {
 			if _, ok := r.uses[o]; ok {
+				continue
+			}
+
+			if strings.Contains(o.pkgPath, "testdata") {
+				// Skip objects defined in testdata packages.
+				continue
+			}
+
+			if opts.excludeGlobs.Match(o.pos.Filename) {
 				continue
 			}
 
