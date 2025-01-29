@@ -395,7 +395,7 @@ func getVar(obj *types.Var) *types.Var {
 		return nil
 	}
 
-	if obj.Pkg().Scope().Lookup(obj.Name()) == nil {
+	if obj.Parent() != obj.Pkg().Scope() {
 		// Declared in a local scope.
 		return nil
 	}
