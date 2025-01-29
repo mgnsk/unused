@@ -66,6 +66,13 @@ var (
 	UsedVar   = 1
 )
 
+func _() {
+	// Compile error.
+	// var UnusedLocalVar = 1
+
+	const UnusedLocalConst = 1
+}
+
 // Used objects.
 
 func UsedFunc() {}
