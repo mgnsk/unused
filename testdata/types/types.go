@@ -55,15 +55,19 @@ func NewUnusedGenericMultiWithConstructor[A, B any]() *UnusedGenericMultiWithCon
 // Const.
 
 const (
-	UnusedConst = 1 // want `unused const UnusedConst`
-	UsedConst   = 1
+	UnusedConst   = 1 // want `unused const UnusedConst`
+	UsedConst     = 1
+	UnusedExclude = 1
 )
 
 // Var.
 
 var (
+	// UnusedVar - this var is re-assigned in testdata/main_test.go but never read, thus unused.
 	UnusedVar = 1 // want `unused var UnusedVar`
-	UsedVar   = 1
+	// UnusedVar2 - never re-assigned and unused.
+	UnusedVar2 = 1 // want `unused var UnusedVar2`
+	UsedVar    = 1
 )
 
 func _() {

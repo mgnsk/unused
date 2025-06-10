@@ -53,7 +53,8 @@ func (i *globFlags) Match(s string) bool {
 
 var (
 	includeGenerated = false
-	excludeGlobs     globFlags
+	excludeFiles     globFlags
+	excludeNames     globFlags
 	cpuProfile       = ""
 	memProfile       = ""
 )
@@ -75,7 +76,8 @@ func main() {
 
 	flag.Usage = usage
 	flag.BoolVar(&includeGenerated, "generated", false, "include unused code in generated Go files")
-	flag.Var(&excludeGlobs, "exclude-glob", "exclude file paths by GLOB")
+	flag.Var(&excludeFiles, "exclude-files", "exclude file paths by GLOB")
+	flag.Var(&excludeNames, "exclude-names", "exclude object names by GLOB")
 	flag.StringVar(&cpuProfile, "cpuprofile", "", "write CPU profile to this file")
 	flag.StringVar(&memProfile, "memprofile", "", "write memory profile to this file")
 	flag.Parse()
@@ -138,7 +140,8 @@ func main() {
 
 	opts := options{
 		includeGenerated: includeGenerated,
-		excludeGlobs:     excludeGlobs,
+		excludeFiles:     excludeFiles,
+		excludeNames:     excludeNames,
 	}
 
 	for o := range result.getUnused(opts) {
@@ -182,7 +185,8 @@ type result struct {
 
 type options struct {
 	includeGenerated bool
-	excludeGlobs     globFlags
+	excludeFiles     globFlags
+	excludeNames     globFlags
 }
 
 // getUnused returns unused nodes.
@@ -205,7 +209,11 @@ func (r result) getUnused(opts options) iter.Seq[object] {
 				continue
 			}
 
-			if opts.excludeGlobs.Match(o.pos.Filename) {
+			if opts.excludeFiles.Match(o.pos.Filename) {
+				continue
+			}
+
+			if opts.excludeNames.Match(o.name) {
 				continue
 			}
 
@@ -254,6 +262,7 @@ func collect(pkgs []*packages.Package, filterModule string) result {
 		}
 
 		receiverUsesIdents := map[*ast.Ident]struct{}{}
+		assignedToVars := map[*ast.Ident]struct{}{}
 
 		for _, f := range pkg.Syntax {
 			for _, group := range f.Comments {
@@ -272,9 +281,17 @@ func collect(pkgs []*packages.Package, filterModule string) result {
 			}
 
 			for n := range ast.Preorder(f) {
-				if decl, ok := n.(*ast.FuncDecl); ok {
-					if id := getFuncDeclReceiver(pkg.Fset, decl); id != nil {
+				switch n := n.(type) {
+				case *ast.FuncDecl:
+					if id := getFuncDeclReceiver(pkg.Fset, n); id != nil {
 						receiverUsesIdents[id] = struct{}{}
+					}
+
+				case *ast.AssignStmt:
+					for _, lhs := range n.Lhs {
+						if id := extractIdent(lhs); id != nil {
+							assignedToVars[id] = struct{}{}
+						}
 					}
 				}
 			}
@@ -291,6 +308,10 @@ func collect(pkgs []*packages.Package, filterModule string) result {
 		for id, o := range createObjects(pkg.TypesInfo.Uses, pkg.Fset) {
 			if _, ok := receiverUsesIdents[id]; ok {
 				// Don't count implementing a method on type as a use of the receiver type.
+				continue
+			}
+			if _, ok := assignedToVars[id]; ok {
+				// Don't count assigning to variable as a use of that variable.
 				continue
 			}
 			r.uses[o] = struct{}{}
@@ -374,6 +395,11 @@ func getConst(obj *types.Const) *types.Const {
 		return nil
 	}
 
+	if obj.Parent() != obj.Pkg().Scope() {
+		// Declared in a local scope.
+		return nil
+	}
+
 	return obj
 }
 
@@ -423,29 +449,31 @@ func getModule() (*goModule, error) {
 	return mod, nil
 }
 
+func extractIdent(n ast.Node) *ast.Ident {
+	switch n := n.(type) {
+	case *ast.Ident:
+		return n
+
+	case *ast.StarExpr:
+		return extractIdent(n.X)
+
+	case *ast.IndexExpr:
+		return extractIdent(n.X)
+
+	case *ast.IndexListExpr:
+		return extractIdent(n.X)
+
+	case *ast.SelectorExpr:
+		return n.Sel
+
+	default:
+		return nil
+	}
+}
+
 func getFuncDeclReceiver(fset *token.FileSet, decl *ast.FuncDecl) *ast.Ident {
 	if decl.Recv == nil {
 		return nil
-	}
-
-	var extractIdent func(ast.Node) *ast.Ident
-	extractIdent = func(n ast.Node) *ast.Ident {
-		switch n := n.(type) {
-		case *ast.Ident:
-			return n
-
-		case *ast.StarExpr:
-			return extractIdent(n.X)
-
-		case *ast.IndexExpr:
-			return extractIdent(n.X)
-
-		case *ast.IndexListExpr:
-			return extractIdent(n.X)
-
-		default:
-			return nil
-		}
 	}
 
 	for _, field := range decl.Recv.List {

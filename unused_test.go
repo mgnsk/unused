@@ -72,7 +72,7 @@ func TestUnused(t *testing.T) {
 	stderr := new(bytes.Buffer)
 
 	// Run the command.
-	cmd := exec.Command(exe, "-exclude-glob", "*.excluded.go")
+	cmd := exec.Command(exe, "-exclude-files", "*.excluded.go", "-exclude-objects", "*Exclude")
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	cmd.Dir = "testdata"
