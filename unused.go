@@ -15,6 +15,7 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"runtime/pprof"
 	"slices"
@@ -144,10 +145,20 @@ func main() {
 		excludeNames:     excludeNames,
 	}
 
+	wd, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	for o := range result.getUnused(opts) {
 		exitCode = 1
 
-		if _, err := fmt.Fprintf(os.Stdout, "%s: unused %s %s\n", o.pos.String(), o.typ, o.name); err != nil {
+		filename, err := filepath.Rel(wd, o.pos.String())
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		if _, err := fmt.Fprintf(os.Stdout, "%s: unused %s %s\n", filename, o.typ, o.name); err != nil {
 			log.Fatal(err)
 		}
 	}
