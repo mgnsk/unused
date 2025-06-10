@@ -2,7 +2,7 @@ The unused command reports unused constants, variables, types and functions in a
 
 Example:
 
-`$ unused -generated -exclude-glob '*.pb.go'`
+`$ unused -generated -exclude-files '*.pb.go' -exclude-names '*FakeService'`
 
 The tool can instructed to skip checking usage of objects by using line comments with a
 `// unused:skip` prefix on the same or previous line where the unused object is defined.
